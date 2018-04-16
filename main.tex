@@ -10,6 +10,9 @@
 \frenchspacing  %Required
 \setlength{\pdfpagewidth}{8.5in}  %Required
 \setlength{\pdfpageheight}{11in}  %Required
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{amssymb}
 %PDF Info Is Required:
   \pdfinfo{
 /Title (Edge Grasp Classification in Deep Learning)
@@ -27,12 +30,107 @@ Northeastern University, Boston, MA\\
 }
 \maketitle
 \begin{abstract}
-This paper considers the problem of the influence of ta-ble edge or shelf edge to grasp pose detection in point clouds. A model is trained to take point cloud and grasp configurations as input to classify each grasp as either edge grasp that is pointing to an edge of table or shelf, or a non-edge grasp that is pointing to an actual object. This paper benchmark two representation of potential grasp, and two convolutional neural networks is built corre-sponding to the two representations. Experiments were performed to compare those two methods. The analysis shows…
+This paper considers the problem of the influence of table edge or shelf edge to grasp pose detection in point clouds. A model is trained to take point cloud and grasp configurations as input to classify each grasp as either edge grasp that is pointing to an edge of table or shelf, or a non-edge grasp that is pointing to an actual object. This paper benchmark two representation of potential grasp, and two convolutional neural networks is built corresponding to the two representations. Experiments were performed to compare those two methods. The analysis shows…
 \end{abstract}
 
 \section{Introduction}
-All papers submitted for publication by AAAI Press must be accompanied by a valid signed copyright form or, in the case of technical reports, by a valid signed permission to distribute form. There are no exceptions to this requirement. You must send us the original version of this form. However, to meet the deadline, you may fax (1-650-321-4457) or scan and e-mail the form (pubforms17@aaai.org) to AAAI by the submission deadline, and then mail the original via postal mail to the AAAI office. \textbf{If you fail to send in a signed copyright or permission form, we will be unable to publish your paper. There are no exceptions to this policy.} You will find PDF versions of the AAAI copyright and permission to distribute forms in the author kit.
+\noindent Grasping is one of the most intuitive and the most widely applied technology in robotics. Recently, researchers have proposed grasp detection methods that estimate potential grasps independently of object identity. Those methods take RGBD image or point cloud from depth sensor as input and generate output of various grasp configurations. 
 
+Those methods are promising and reliable. \cite{RN6} achieved a 93\% end-to-end grasp success rate for novel objects presented in dense clutter with their grasp pose detection (GPD) method. However, one problem of such method is that in practical grasping applications which aim to grasp object on table or shelf, some grasp pointing to the edge of table or shelf may be regarded as good grasp. 
+
+In this paper, a series of methods are proposed that make GPD avoid that problem. First, 2 grasp representation methods are used to turn raw data from point cloud as well as grasp configuration into image that can be used for neural network input. Second, 2 convolutional neural networks are built respectively for those 2 representations. They take the representation image as input and output the probability for that grasp being edge grasp or non-edge grasp. Third, experiments are made to evaluate the performance of the 2 models.
+
+\section{Background}
+\noindent Grasping involves observing the environment as well as generating potential grasps from observed information. Some grasp detection method like the ROS grasp pipeline \cite{RN5} build a CAD model of the target object, then calculate a trajectory that grasp the localized object. However, this approach assume that an accurate CAD model could be built for every grasping object. In contrast, GPD \cite{RN6} detect potential grasps by analyzing the local geometry and/or graspable surface.
+
+\begin{algorithm}
+\caption{Grasp Pose Detection}
+\textbf{Input:} a view point cloud,  $\mathbb{C}$; a region of interest, $R$; a hand, $\Theta$; a positive integer, $\mathbb{N}$ \\
+\textbf{Output:} a set of 6-DOF grasp candidates, $H\subset R$ \\
+\begin{algorithmic}[1]
+\STATE $\mathbb{C}'={\rm PreprocessCloud}(\mathbb{C})$
+\STATE $R={\rm GetROI}(\mathbb{C}')$
+\STATE $S={\rm Sample}(\mathbb{C}',R,\Theta, \mathbb{N})$
+\STATE $I={\rm Encode}(S,\mathbb{C}', R, \Theta)$
+\STATE $H={\rm Score}(I)$
+\STATE $g={\rm SelectGrasp}(S, H)$
+\end{algorithmic}  
+\end{algorithm}  
+
+Their algorithm, as is shown in Algorithm 1, works as follow. Step 1 preprocess the original point cloud. Step 2 characterize the region of interest (ROI), which is the region of the target location. Step 3 samples a series of grasp candidates from ROI. Step 4 encodes each grasp candidate as a multi-channel image. Step 5 assign each candidate a score. Those scores indicate how likely that candidate is a grasp. Step 6 select a number of grasps based on the score from step 5.
+
+\section{Related Work}
+\subsection{Choosing Grasp Heuristically}
+By manually confine grasp configuration based on the known knowledge of the environment, edge grasps could be avoided. For example, a “top grasp” \cite{RN8}, which means the gripper approach-es the object from the top down, is always a non-edge grasp since the edge is always perpendicular to the gravity vector. However, this requires enough space above the grasp position. If there is only “side grasps”, the problem still exists.
+
+\subsection{Multi-view Representation of Point Cloud}
+One approach to apply machine learning methods to point cloud is using multiple views. Multi-view CNN \cite{RN7} takes 2D images from 12 different views from a 3D shape model as input, outputs object class predictions.
+Based on multi-view CNN, GPD used 15 channels image representation for each grasp \cite{RN6}. For each of the x, y, and z axis, they have an averaged height map of the occupied points, an averaged height map of the unobserved region, and 3 averaged surface normal images.
+
+\subsection{Occupancy Grid Representation of Point Cloud}
+3D convolutional neural networks are also used when applying machine learning methods to point cloud data. VoxNet \cite{RN4} provided a basic 3D CNN architecture that can be applied to create fast and accurate object class detectors for point cloud data. Their method takes point cloud as input, generate occupancy grid based on that point cloud, and uses a 2-layer 3D CNN for classification.
+
+\section{Project Description}
+\subsection{Overview of Edge Grasp Classification Algorithm}
+Given a point cloud and a transformation matrix representing a grasp, the edge grasp classification problem is to compute the probability of that grasp being an edge grasp or a non-edge grasp.
+
+\begin{algorithm}
+\caption{Edge Grasp Classification}
+\textbf{Input:} a point cloud, $\mathbb{C}$; a grasp transformation matrix, ${^h}T_b$ \\
+\textbf{Output:} a probability of that grasp being edge grasp, $P\in [0, 1]$ \\
+\begin{algorithmic}[1]
+\STATE $I={\rm GraspRepresentation}(\mathbb{C}, {^h}T_b)$
+\STATE $P={\rm Probability}(I)$
+\end{algorithmic}
+\end{algorithm}
+
+My algorithm follows the steps shown in Algorithm 2. Step 1 encodes the grasp candidate into a multi-channel image from the original point cloud and the transformation matrix (from base frame to hand frame) of that grasp. Step 2 generate the probability of that grasp being an edge grasp using convolutional neural networks.
+
+\subsection{Grasp Representation}
+Each grasp candidate is represented in an image of fixed size so that it could be used for the input of convolutional neural network. The image should contain the information of the geometry of the observed grasping surface. Let $\mathbb{C}$ be the observed point cloud in base frame, and ${}^hT_b$ be the transformation matrix of a grasp from base frame to hand frame, then the point cloud in hand frame ${}^h\mathbb{C}$ is:
+\begin{equation}
+    {}^h\mathbb{C}={}^hT_b\mathbb{C}
+\end{equation}
+and the points that will be computed into image is:
+\begin{equation}
+    X=\{\forall {\rm point}\in {}^h\mathbb{C}|{\rm point}\in {\rm ROI}\}
+\end{equation}
+where ROI is the cubic region of interest.
+
+\subsubsection{Multiple view representation}
+Inspired by the representation in GPD \cite{RN6}, this paper firstly use a 3-channel multi-view image. Specifically, $X$ is projected onto 3 planes orthogonal to the 3 axes of the hand frame. For example, the projection of the (x, y) plane is calculated as follows:
+For point $X[i]$, its (x, y) coordinates $C(x, y)[i]$ in the projection image is computed as:
+\begin{equation}
+    C(x, y)[i]=\frac{p-1}{l} (X(x, y)[i] + \frac {l} 2)
+\end{equation}
+where $X(x, y)[i]$ is the x, y value of point $X[i]$, p is the number of the pixels in the square projection image, and l is the length of the cubic ROI. $C(x, y)[i]\in [0, p)$ and $C(x, y)[i]\in \mathbb{N}$
+
+The value $V(x, y)[i]$ of point $X[i]$ in the projection image is computed as:
+\begin{equation}
+    V(x, y)[i]=\frac{X(z)[i]+\frac{l}{2}}{l}
+\end{equation}
+where $X(z)[i]$ is the z value of point $X[i]$. $V(x, y)[i]\in [0, 1]$. After the coordinates and values of each point is computed, the image $I(x, y)$ is computed as:
+
+\begin{algorithm}
+\caption{Projection Image for (x, y) Plane}
+\textbf{Input:} coordinates $C=C(x, y)$; values $V=V(x, y)$\\
+\textbf{Output:} projection image in (x, y) plane, $I=I(x,y)$ \\
+\begin{algorithmic}[1]
+\FOR {$i = 0 \to p-1$}
+\FOR {$j = 0 \to p-1$} 
+\STATE $I[i, j] = 0$
+\ENDFOR
+\ENDFOR
+\FOR {$i = 0 \to n$}
+\STATE $I[C[i].x, C[i].y]=\max(I[C[i].x, C[i].y], V[i])$
+\ENDFOR
+\STATE $I={\rm GrayDilation}(I)$
+\end{algorithmic}
+\end{algorithm}
+The value of a particular pixel in the image is the max value of all points that is assigned into the coordinate of that pixel. Gray dilation 
+
+
+\clearpage
 \section{Formatting Requirements in Brief}
 We need source and PDF files that can be used in a variety of ways and can be output on a variety of devices. The design and appearance of the paper is governed by the aaai style file. You must not make any changes to this file, nor use any commands, packages, style files, or macros that alter that design, including, but not limited to spacing, floats, margins, fonts, font size, and appearance. AAAI imposes  requirements on your source and PDF files that must be followed. Most of these requirements are based on our efforts to standardize conference manuscript properties and layout. All papers submitted to AAAI for publication must comply with the following:
 
