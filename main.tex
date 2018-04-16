@@ -13,6 +13,8 @@
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{amssymb}
+\usepackage{graphicx}
+\graphicspath{ {images/} }
 %PDF Info Is Required:
   \pdfinfo{
 /Title (Edge Grasp Classification in Deep Learning)
@@ -74,7 +76,7 @@ Based on multi-view CNN, GPD used 15 channels image representation for each gras
 \subsection{Overview of Edge Grasp Classification Algorithm}
 Given a point cloud and a transformation matrix representing a grasp, the edge grasp classification problem is to compute the probability of that grasp being an edge grasp or a non-edge grasp.
 
-\begin{algorithm}
+\begin{algorithm}[H]
 \caption{Edge Grasp Classification}
 \textbf{Input:} a point cloud, $\mathbb{C}$; a grasp transformation matrix, ${^h}T_b$ \\
 \textbf{Output:} a probability of that grasp being edge grasp, $P\in [0, 1]$ \\
@@ -97,7 +99,7 @@ and the points that will be computed into image is:
 \end{equation}
 where ROI is the cubic region of interest.
 
-\subsubsection{Multiple view representation}
+\subsubsection{Multiple View Representation.}
 Inspired by the representation in GPD \cite{RN6}, this paper firstly use a 3-channel multi-view image. Specifically, $X$ is projected onto 3 planes orthogonal to the 3 axes of the hand frame. For example, the projection of the (x, y) plane is calculated as follows:
 For point $X[i]$, its (x, y) coordinates $C(x, y)[i]$ in the projection image is computed as:
 \begin{equation}
@@ -111,7 +113,7 @@ The value $V(x, y)[i]$ of point $X[i]$ in the projection image is computed as:
 \end{equation}
 where $X(z)[i]$ is the z value of point $X[i]$. $V(x, y)[i]\in [0, 1]$. After the coordinates and values of each point is computed, the image $I(x, y)$ is computed as:
 
-\begin{algorithm}
+\begin{algorithm}[H]
 \caption{Projection Image for (x, y) Plane}
 \textbf{Input:} coordinates $C=C(x, y)$; values $V=V(x, y)$\\
 \textbf{Output:} projection image in (x, y) plane, $I=I(x,y)$ \\
@@ -127,7 +129,54 @@ where $X(z)[i]$ is the z value of point $X[i]$. $V(x, y)[i]\in [0, 1]$. After th
 \STATE $I={\rm GrayDilation}(I)$
 \end{algorithmic}
 \end{algorithm}
-The value of a particular pixel in the image is the max value of all points that is assigned into the coordinate of that pixel. Gray dilation 
+
+The value of a particular pixel in the image is the max value of all points that is assigned into the coordinate of that pixel. Gray dilation \cite{BK1} is applied to avoid the influence of void pixels.
+
+After applying above methods to 3 planes orthogonal to the 3 axis of the hand reference frame, a $3\times p \times p$ image is generated for a grasp candidate.
+
+\subsubsection{3D Occupancy Grid Representation.} This paper also use a 3 dimensional occupancy grid image, where $X$ is transformed into a binary 3D image. The 3D image is calculated as follows:
+For point $X[i]$, its coordinates $C'[i]$ in the occupancy image is computed as:
+\begin{equation}
+    C'[i]=\frac{p-1}{l} (X[i]+\frac{l}{2}
+\end{equation}
+where $C'[i]\in [0, p)$ and $C'[i]\in \mathbb{N}$. The image $I'$ is computed as:
+\begin{algorithm}[H]
+\caption{Occupancy Image}
+\textbf{Input:} coordinates $C'$\\
+\textbf{Output:} occupancy image, $I'$\\
+\begin{algorithmic}[1]
+\FOR {$i = 0 \to p-1$}
+\FOR {$j = 0 \to p-1$}
+\FOR {$k = 0 \to p-1$}
+\STATE $I[i, j, k] = 0$
+\ENDFOR
+\ENDFOR
+\ENDFOR
+\FOR {$i = 0 \to n$}
+\STATE $I[C[i].x, C[i].y, C[i].z]=1$
+\ENDFOR
+\STATE $I={\rm BinaryDilation}(I)$
+\end{algorithmic}
+\end{algorithm}
+
+The value of a particular pixel in the image is 1 if at least 1 point is assigned into the coordinate of that pixel, or the value will be 0. Similarly, binary dilation \cite{BK1} is applied to avoid the influence of void pixels.
+
+After applying above methods, a $p\times p\times p$ image is generated for a grasp candidate.
+
+\subsection{Convolutional Neural Networks}
+Convolutional neural networks are applied to computing the probability. This paper use PyTorch \cite{Pytorch} to implement CNNs.
+
+\subsubsection{2.5D CNN for Projection Image.} This paper used the basic structure of LeNet\cite{RN3}. The detailed structure is:
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=8cm]{images/CNN.png}
+    \caption{Structure of CNN}
+    \label{fig:my_label}
+\end{figure}
+The input is $3\times60\times60$ projection image from above multiple view representation. A $6\times5\times5$ filter is applied first, which produce a $6\times56\times56$ hidden layer. The second filter with size $16\times5\times5$ is applied after max pooling, then max pooling again. After that, 3 full connection layer is used, and Softmax function generate the output. The output of this CNN is 2 probabilities, representing the input grasp image being edge grasp and non-edge grasp.
+
+\subsubsection{3D CNN for Occupancy Image.} This paper further applied a 3 dimensional convoluntional neural network to the occupancy grid image. The structure is inspired by VoxNet \cite{RN4}. 
+
 
 
 \clearpage
