@@ -14,6 +14,7 @@
 \usepackage{algorithmic}
 \usepackage{amssymb}
 \usepackage{graphicx}
+\usepackage[caption=false]{subfig}
 \graphicspath{ {images/} }
 %PDF Info Is Required:
   \pdfinfo{
@@ -36,7 +37,9 @@ This paper considers the problem of the influence of table edge or shelf edge to
 \end{abstract}
 
 \section{Introduction}
-\noindent Grasping is one of the most intuitive and the most widely applied technology in robotics. Grasping could be divided into two sub problems: perception and planning. The robot always need to observe the environment and determine the target object, then planning technology is applied to operate the robot to reach the grasp configuration. Grasp detection is the base of a grasping task.  Recently, researchers have proposed grasp detection methods that estimate potential grasps independently of object identity. Those methods take RGBD image or point cloud from depth sensor as input and generate output of various grasp configurations. Some of those methods combine the technology in machine learning, classification methods are used to deal with the RGBD image or point cloud to generate grasp candidates.
+\noindent Grasping is one of the most intuitive and the most widely applied technology in robotics. Grasping could be divided into two sub problems: perception and planning. The robot always need to observe the environment and determine the target object, then planning technology is applied to operate the robot to reach the grasp configuration. Grasp detection is the base of a grasping task.
+
+Recently, researchers have proposed grasp detection methods that estimate potential grasps independently of object identity. Those methods take RGBD image or point cloud from depth sensor as input and generate output of various grasp configurations. Some of those methods combine the technology in machine learning. Classification methods are used to deal with the RGBD image or point cloud to generate grasp candidates.
 
 Some of those methods are promising and reliable. \cite{RN6} achieved a 93\% end-to-end grasp success rate for novel objects presented in dense clutter with their grasp pose detection (GPD) method. However, one problem of such method is that in practical grasping applications which aim to grasp object on table or shelf, some grasp pointing to the edge of table or shelf may be regarded as good grasp. This will not only influence the performance in grasping task, but also harm the gripper by collision. 
 
@@ -197,9 +200,51 @@ The input is a 1 channel $32\times 32\times 32$ image from 3D occupancy grid rep
 
 \section{Experiments}
 \subsection{Data Collection}
-In order to train the CNNs, this paper firstly collect point cloud data from both simulator and real world, then send point cloud to GPD \cite{RN6}. A filter is used to select grasps based on the geometry of the point cloud. For example, when generating data of table edge grasp, only the grasp candidates near the table edge will be selected. While when generating data of non-edge grasps on a table, grasps near the table edge will be filtered out. A grasp visualization method is used to visualize each group of selected grasp candidates to ensure that there are not too much noises. After a group of grasp candidates are selected, 2 representation algorithms described before will generate the input images. Then those images will be saved. A binary label is used for all images, edge grasps will be labeled as 1 and non-edge grasps will be labeled as 0.
+In order to train the CNNs, this paper firstly collect point cloud data from both simulator and real world, then use GPD \cite{RN6} to generate grasps. After that, the representation methods described above is applied to create images from grasps.
+
+\subsubsection{Point Clouds.} A simulated shelf and a simulated depth sensor is created in OpenRAVE environment. The simulated camera takes the point cloud 20 times from 20 different positions, and combine them to 1 point cloud. 
+
+For collecting real world point clouds, this paper used a UR5 robot arm with a depth sensor mounted on the wrist to collect data. For each point cloud, the robot goes to 2 view configurations and takes 2 point clouds. Then those 2 point clouds are combined into 1 point cloud. Points outside the ROI is filtered out. 
+
+\subsubsection{Grasps.} Point clouds are sent to GPD \cite{RN6} to generate potential grasps. After GPD returns a set of grasps, a filter is used to select grasps based on the geometry of the point cloud. For example, when generating data of table edge grasp, only the grasp candidates near the table edge will be selected. While when generating data of non-edge grasps on a table, grasps near the table edge will be filtered out. A grasp visualization method is used to visualize each group of selected grasp candidates to ensure that there are not too much noises. 
+
+\subsubsection{Representation Images.} After a group of grasp candidates are selected, 2 representation algorithms described before will generate the input images. For each grasp, a 2D image and a 3D image is created. A binary label is used for all images, edge grasps will be labeled as 1 and non-edge grasps will be labeled as 0.
+
+A total of 5842 grasp images is collected for each of the 2 neural nets. 3272 of them are labeled as edge grasps and others are labeled as non-edge grasps.
+
 \subsection{Training}
-In both convolutional neural networks, this paper use same training parameters. Cross entropy loss is used as the loss function, stochastic gradient descent is applied as the optimizer. The learning rate is 0.01, and batch size is 64.
+In both convolutional neural networks, this paper use same training parameters. Cross entropy loss is used as the loss function: 
+\begin{equation}
+    H(p, q)=-\sum_x p(x)\log q(x)
+\end{equation}
+where p is the distribution of the label (one hot) and q is the distribution of the output of the classifier.
+
+Stochastic gradient descent is applied as the optimizer. The learning rate is 0.01, and batch size is 64. 
+
+\begin{figure}[t]
+
+\subfloat[Training Process of 2D CNN]{%
+  \includegraphics[width=\columnwidth]{images/2dtraining.png}%
+}
+
+\subfloat[Training Process of 3D CNN]{%
+  \includegraphics[width=\columnwidth]{images/3dtraining.png}%
+}
+
+\caption{Training process of 2 convolutional neural networks. Red: training loss for each training steps. Blue: validation loss for each training episodes. Orange: classification accuracy in validation set for each training episodes.}
+
+\end{figure}
+
+In the training process of 2D CNN, the classification accuracy converges at around 95\% after 16 training episodes (orange line in figure 4(a)). Both the test loss (blue line in figure 4(a)) and training loss (red line in figure 4(a)) decrease at the first 10 episodes, then remain relatively stable. 
+
+In the training process of 3D CNN, the classification accuracy converges at around 98\% after 15 training episodes (orange line in figure 4(b)). The test loss (blue line in figure 4(b)) and training loss (red line in figure 4(b)) also decrease at the first 10 episodes. 
+
+The performance of both 2D CNN and 3D CNN in the training process is good. By comparing the results, 3D CNN reaches a higher classification accuracy in the validation set, and has lower training loss and test loss throughout the training process. Also, the training loss of 3D CNN is more stable than that of the 2D CNN.
+
+\subsection{Test Trained Networks}
+
+
+
 
 
 \clearpage
